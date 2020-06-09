@@ -9,18 +9,22 @@ import copy
 import time
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--no_cycles", default=2000,
+parser.add_argument("--no_cycles", default=1000,
                     type=int, help="Number of cycles of evolution.")
 parser.add_argument("--no_cities", default=40,
                     type=int, help="Number of cities to travel through.")
 parser.add_argument("--no_islands", default=2,
                     type=int, help="Number of islands for the island model.")
-parser.add_argument("--population_size", default=100,
+parser.add_argument("--population_size", default=300,
                     type=int, help="Size of population of individual islands.")
-parser.add_argument("--map_size", default=(10, 10),
+parser.add_argument("--map_size", default=(15, 15),
                     type=tuple, help="Int dimensions of the map.")
 parser.add_argument("--mutation_rate", default=(0.01, 0.02),
                     type=tuple, help="Mutation rates for the individual islands")
+parser.add_argument("--catastrophy_lethality", default=0.2,
+                    type=float, help="What portion of island perishes in catastrophy")
+parser.add_argument("--migration_rate", default=0.01,
+                    type=float, help="How often does a solution migrate between islands")
 parser.add_argument("--plot", default=False,
                     action="store_true", help="Plot progress.")
 parser.add_argument("--seed", default=42, type=int, help="Random seed.")
@@ -192,11 +196,11 @@ def breed_population(selected_for_breeding):
     for pair in selected_for_breeding:
         parent1 = pair[0]
         parent2 = pair[1]
-        
+
         child1, child2 = breed(parent1, parent2)
 
         family = [parent1, parent2, child1, child2]
-        
+
         unique_family = []
         routes = []
         for solution in family:
@@ -206,7 +210,7 @@ def breed_population(selected_for_breeding):
 
         family = sorted(unique_family, key=lambda x: x.fitness, reverse=True)
         family = family[:2]
-        
+
         bred_population.extend(family)
 
     return bred_population
@@ -257,6 +261,20 @@ def mutate_population(population, mutation_rate):
     return mutants
 
 
+def cause_catastrophy(island):
+    no_perished = int(len(island.solutions) * args.catastrophy_lethality)
+
+    route = island.solutions[0].route
+    new_route = route[:]
+
+    for i in range(len(island.solutions)-no_perished, len(island.solutions)):
+        random.shuffle(new_route)
+        island.solutions[i].route = new_route
+        island.solutions[i].fitness = island.solutions[i].count_fitness()
+
+    return island
+
+
 def create_next_gen(island, catastrophy):
     ranked_population = island.solutions
 
@@ -268,19 +286,42 @@ def create_next_gen(island, catastrophy):
 
     mutated_population = mutate_population(population, island.mutation_rate)
 
+    island.evaluate_generation()
+
+    if catastrophy:
+        island = cause_catastrophy(island)
+
     island.solutions = mutated_population
     island.best_solution = island.evaluate_generation()[0]
 
     return island
 
 
+def migrate(island1, island2):
+    island1_index = random.randint(0, len(island1.solutions))
+    island2_index = random.randint(0, len(island2.solutions))
+
+    island1.solutions[island1_index], island2.solutions[island2_index] = island2.solutions[island2_index], island1.solutions[island1_index]
+
+    return island1, island2
+
 def Main():
     islands = setup_test_data()
 
     for i in range(args.no_cycles):
         for island in islands:
-            island = create_next_gen(island, catastrophy=False)
+            if i >= 400 and i % 50 == 0:
+                island = create_next_gen(island, catastrophy=True)
+            else:
+                island = create_next_gen(island, catastrophy=False)
             island.progress.append(island.best_solution.fitness)
+
+        if random.random() < args.migration_rate:
+            print('migration')
+            index = int(random.random() * len(islands))
+            island1 = islands[index]
+            island2 = islands[(index + 1)%len(islands)] 
+            island1, island2 = migrate(island1, island2)
 
     plt.plot(islands[0].progress)
     plt.show()
