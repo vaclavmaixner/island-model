@@ -43,7 +43,7 @@ def setupCityList(noCities, gridSize):
                     int(random.random() * gridSize))
         cityList.append(city)
 
-    return test
+    return testList
 
 
 # count distance between two cities
@@ -96,10 +96,15 @@ def initialPopulation(popSize, cityList):
 
     return population
 
+# select those that are to breed
+
 
 def naturalSelection(rankedPop, eliteSize):
     selectionResult = []
 
+    print()
+    print(rankedPop)
+    print()
     df = pd.DataFrame(np.array(rankedPop), columns=["Index", "Fitness"])
     df["cum_sum"] = df.Fitness.cumsum()
     df["cum_perc"] = 100 * df.cum_sum / df.Fitness.sum()

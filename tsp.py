@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import copy
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--no_cycles", default=3,
@@ -39,27 +40,44 @@ class Solution():
         dy = abs(city2.y - city1.y)
         return np.sqrt((dx ** 2) + (dy ** 2))
 
-    def count_fitness(self, route):
+    def count_fitness(self):
         total_distance = 0.0
 
-        for i in range(len(route)):
-            from_city = route[i]
+        for i in range(len(self.route)):
+            from_city = self.route[i]
             to_city = None
 
-            if i+1 < len(route):
-                to_city = route[i+1]
+            if i+1 < len(self.route):
+                to_city = self.route[i+1]
             else:
-                to_city = route[0]
+                to_city = self.route[0]
 
             total_distance += self.distance(from_city, to_city)
 
-        return 1 / float(total_distance)
+        self.fitness = 1 / float(total_distance)
+
+        return self.fitness
 
     def print_route(self):
         print('Route: ', self.fitness)
         for city in self.route:
             print(city.x, city.y)
         print()
+
+    def plot_solution(self):
+        x = []
+        y = []
+
+        for city in self.route:
+            x.append(city.x)
+            y.append(city.y)
+
+        x.append(self.route[0].x)
+        y.append(self.route[0].y)
+
+        plt.plot(x, y, color='red', marker='o', linestyle='dashed',
+                 linewidth=1, markersize=4)
+        plt.show()
 
 
 class Island():
@@ -68,10 +86,79 @@ class Island():
         self.mutation_rate = mutation_rate
         self.elite_size = elite_size
 
-    def create_next_gen(self):
+    def evaluate_generation(self):
+        ordered_solutions = []
         for solution in self.solutions:
-            # print(solution)
-            pass
+            solution.count_fitness()
+            ordered_solutions.append(solution)
+
+        ordered_solutions = sorted(ordered_solutions, key=lambda x: x.fitness, reverse=True)
+        print('Solution fitness:')
+        print([x.fitness for x in ordered_solutions])
+        print()
+        return ordered_solutions
+
+    def breed(self, parent1, parent2):
+        child = Solution(route=[], fitness=None)
+        
+        gene1 = int(random.random() * len(parent1.route))
+        gene2 = int(random.random() * len(parent1.route))
+
+        startGene = min(gene1, gene2)
+        endGene = max(gene1, gene2)
+
+        for i in range(startGene, endGene):
+            child.route.append(parent1.route[i])
+
+        finish = [item for item in parent2.route if item not in child.route]
+
+        child.route = child.route + finish
+
+        child.fitness = child.count_fitness()
+
+        return child
+
+
+    def select_mating_pool(self, solutions):
+        selected_for_breeding = []
+        no_parents = len(self.solutions) // 4
+        print(no_parents)
+
+        for i in range(no_parents):
+            parent1 = random.choice(self.solutions)
+            while True:
+                parent2 = random.choice(self.solutions)
+                if parent1 != parent2:
+                    break
+            selected_for_breeding.append((parent1, parent2))
+            self.solutions.remove(parent1)
+            self.solutions.remove(parent2)
+
+        print(selected_for_breeding[0][0].fitness, 'parent1')
+        print(selected_for_breeding[0][1].fitness, 'parent2')
+        print(len(self.solutions))
+        return selected_for_breeding
+
+    def breed_population(self, selected_for_breeding):
+        for pair in selected_for_breeding:
+            parent1 = pair[0]
+            parent2 = pair[1]
+
+            child = self.breed(parent1, parent2)
+
+            family = [parent1, parent2, child]
+            family = sorted(family, key=lambda x: x.fitness, reverse=True)
+            family.pop()
+
+            print(child.fitness, 'child')
+        
+            self.solutions.extend(family)
+            print(len(self.solutions))
+        
+    def create_next_gen(self):
+        # for solution in self.solutions:
+        #     pass
+        self.breed_population(self.select_mating_pool())
 
 
 def setup_test_data():
@@ -89,13 +176,21 @@ def setup_test_data():
         for k in range(args.population_size):
             route = random.sample(cities, len(cities))
             solution = Solution(route=route, fitness=0)
-            solution.fitness = solution.count_fitness(solution.route)
+            solution.fitness = solution.count_fitness()
             solutions.append(solution)
 
         island = Island(solutions=solutions,
                         mutation_rate=0.1, elite_size=0.01)
         islands.append(island)
-    
+
+    for island in islands:
+        island.evaluate_generation()
+
+    islands[0].create_next_gen()
+
+    for island in islands:
+        island.evaluate_generation()
+
 
 # def run_tsp():
 #     n = 0
