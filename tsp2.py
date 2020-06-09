@@ -9,11 +9,11 @@ import copy
 import time
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--no_cycles", default=100,
+parser.add_argument("--no_cycles", default=3,
                     type=int, help="Number of cycles of evolution.")
 parser.add_argument("--no_cities", default=5,
                     type=int, help="Number of cities to travel through.")
-parser.add_argument("--no_islands", default=2,
+parser.add_argument("--no_islands", default=1,
                     type=int, help="Number of islands for the island model.")
 parser.add_argument("--population_size", default=4,
                     type=int, help="Size of population of individual islands.")
@@ -26,7 +26,8 @@ args = parser.parse_args()
 
 
 class City:
-    def __init__(self, x, y):
+    def __init__(self, index, x, y):
+        self.index = index
         self.x = x
         self.y = y
 
@@ -60,10 +61,11 @@ class Solution():
         return self.fitness
 
     def print_route(self):
-        print('Route: ', self.fitness)
+        # print('Route: ', self.fitness)
         for city in self.route:
-            print(city.x, city.y, end=' ')
+            print(city.index, end=' ')
         print(end='     ')
+        print(self.fitness)
 
     def plot_solution(self):
         x = []
@@ -108,14 +110,15 @@ class Island():
         return ordered_solutions
 
     def overview(self, extended):
-        print('Island overview', self.number)
-        print('Best result: ', self.best_solution.fitness)
         if extended:
+            # print('Island overview', self.number)
+            # print('Best result: ', self.best_solution.fitness)
             print('_'*40)
             # print([(solution.print_route(), solution.fitness) for solution in self.solutions])
             for solution in self.solutions:
                 solution.print_route()
-                print(solution.fitness, ' fitness')
+                # print(solution.fitness, '-fitness')
+            print()
 
     def show_diversity(self):
         unique_routes = []
@@ -134,7 +137,8 @@ def setup_test_data():
 
     cities = []
     for i in range(args.no_cities):
-        city = City(x=int(random.random()*args.map_size[0]),
+        city = City(index=i,
+                    x=int(random.random()*args.map_size[0]),
                     y=int(random.random()*args.map_size[1]))
         cities.append(city)
 
@@ -166,16 +170,60 @@ def breed(parent1, parent2):
     for i in range(start_gene, end_gene):
         child.route.append(parent1.route[i])
 
+    print('child')
+    child.print_route()
+
     finish = [item for item in parent2.route if item not in child.route]
 
     child.route = child.route + finish
 
     child.fitness = child.count_fitness()
 
+    print('breed')
+    parent1.print_route()
+    parent2.print_route()
+    child.print_route()
+    print('/breed')
+
     return child
 
 
+def breed_population(selected_for_breeding):
+    bred_population = []
+
+    for pair in selected_for_breeding:
+        parent1 = pair[0]
+        parent2 = pair[1]
+
+        child = breed(parent1, parent2)
+
+        print('breeding')
+        parent1.print_route()
+        parent2.print_route()
+        child.print_route()
+        print('/breeding')
+
+        family = [parent1, parent2, child]
+        family = sorted(family, key=lambda x: x.fitness, reverse=True)
+        # print([x.fitness for x in family])
+        family.pop()
+
+        # parent1.plot_solution()
+        # parent2.plot_solution()
+        # child.plot_solution()
+
+        # print(child.fitness, 'child')
+
+        bred_population.extend(family)
+
+    return bred_population
+
+
 def select_mating_pool(solutions):
+    print('mating')
+    for solution in solutions:
+        solution.print_route()
+    print('/mating')
     selected_for_breeding = []
 
     no_parent_pairs = len(solutions) // 4
@@ -194,32 +242,18 @@ def select_mating_pool(solutions):
     # print(selected_for_breeding[0][1].fitness, 'parent2')
     # print(len(solutions))
 
+    print('parent1')
+    parent1.print_route()
+    print('parent2')
+    parent2.print_route()
+    print('/parents')
+
+    print('rest')
+    for solution in solutions:
+        solution.print_route()
+    print('/rest')
+
     return selected_for_breeding, solutions
-
-
-def breed_population(selected_for_breeding):
-    bred_population = []
-
-    for pair in selected_for_breeding:
-        parent1 = pair[0]
-        parent2 = pair[1]
-
-        child = breed(parent1, parent2)
-
-        family = [parent1, parent2, child]
-        family = sorted(family, key=lambda x: x.fitness, reverse=True)
-        # print([x.fitness for x in family])
-        family.pop()
-
-        # parent1.plot_solution()
-        # parent2.plot_solution()
-        # child.plot_solution()
-
-        # print(child.fitness, 'child')
-
-        bred_population.extend(family)
-
-    return bred_population
 
 
 def mutate(solution, mutation_rate):
@@ -251,6 +285,7 @@ def mutate_population(population, mutation_rate):
 
 def create_next_gen(island):
     # ranked_population = island.evaluate_generation()
+
     ranked_population = island.solutions
 
     selected_to_breed, non_breeding = select_mating_pool(ranked_population)
@@ -264,11 +299,10 @@ def create_next_gen(island):
     island.solutions = mutated_population
     island.best_solution = island.evaluate_generation()[0]
 
-    sys.stdout.write('.')
-    sys.stdout.flush()
+    print()
+    # sys.stdout.write('.')
+    # sys.stdout.flush()
 
-    island.overview(extended=True)
-    time.sleep(0.5)
     return island
 
 
@@ -282,6 +316,10 @@ def Main():
             # print(island.best_solution.fitness)
 
             island.progress.append(island.best_solution.fitness)
+
+            if island.number == 0:
+                island.overview(extended=True)
+                time.sleep(0.5)
 
     print(islands[0].progress)
     plt.plot(islands[0].progress)
